@@ -1,0 +1,2 @@
+EF Core migrations are generated into this folder in a later step
+(dotnet ef migrations add ... -p StudioFlow.Data -s StudioFlow.API).

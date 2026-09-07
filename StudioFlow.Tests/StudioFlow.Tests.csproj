@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <!-- The two-DbContext concurrency proof (§37/§38) runs the real Npgsql provider. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unit tests target the Service layer; the concurrency proof needs the real
+         DbContext + UnitOfWork from Data. Test projects may reference any layer. -->
+    <ProjectReference Include="..\StudioFlow.Core\StudioFlow.Core.csproj" />
+    <ProjectReference Include="..\StudioFlow.Service\StudioFlow.Service.csproj" />
+    <ProjectReference Include="..\StudioFlow.Data\StudioFlow.Data.csproj" />
+  </ItemGroup>
+
+</Project>

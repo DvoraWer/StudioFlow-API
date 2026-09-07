@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Core is the centre of the architecture: Entities, Enums, DTOs and Interfaces.
+    It has NO project references and NO NuGet packages.
+    If anything is ever added here, the dependency rule has been broken.
+  -->
+
+</Project>

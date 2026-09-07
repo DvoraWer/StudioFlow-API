@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Service depends on Core only. It never references Data; it uses the
+         repository interfaces defined in Core. -->
+    <ProjectReference Include="..\StudioFlow.Core\StudioFlow.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Entity <-> DTO mapping (spec §24). 15.1.x is the current supported line
+         with the NU1903 DoS advisory (GHSA-rvv3-g6hj-g44x, fixed in 15.1.1)
+         patched; the DI extension is part of this package. -->
+    <PackageReference Include="AutoMapper" Version="15.1.3" />
+
+    <!-- ILogger<T> abstraction only (spec §34). NLog is wired as the provider in
+         the API host; the Service layer never touches NLog directly. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+
+</Project>

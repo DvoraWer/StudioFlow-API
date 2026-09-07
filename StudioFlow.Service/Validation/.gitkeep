@@ -1,0 +1,2 @@
+Business-rule validators (e.g. instructor/room schedule-overlap checks) live here
+(StudioFlow spec §15, §36). Added in a later step.
