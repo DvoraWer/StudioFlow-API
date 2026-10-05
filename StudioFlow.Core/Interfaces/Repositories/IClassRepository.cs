@@ -27,6 +27,14 @@ public interface IClassRepository
     /// </summary>
     Task<Class?> GetForUpdateAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Makes a tracked Class (from <see cref="GetForUpdateAsync"/>) part of the next save
+    /// without changing any of its values: the row is written back as-is, so the xmin
+    /// concurrency token is checked and advanced. Used to make the Class the per-class
+    /// concurrency boundary for changes that do not otherwise touch it (waitlist join/leave).
+    /// </summary>
+    void MarkForConcurrencyCheck(Class @class);
+
     /// <summary>True if this instructor already has an active class overlapping the given time window.</summary>
     Task<bool> InstructorHasOverlapAsync(int instructorId, DateTime startTime, DateTime endTime, int? excludeClassId, CancellationToken cancellationToken = default);
 

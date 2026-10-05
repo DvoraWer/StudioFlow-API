@@ -145,6 +145,8 @@ public sealed class RegistrationService : IRegistrationService
 
                 @class.RegisteredCount++;
 
+                await WaitlistPositions.ReindexAsync(_waitlist, classId, cancellationToken);
+
                 _logger.LogInformation(
                     "Waitlist promotion. Promoted MemberId={MemberId} into ClassId={ClassId} after a cancellation.",
                     next.MemberId, classId);

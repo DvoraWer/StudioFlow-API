@@ -97,6 +97,11 @@ public class ClassRepository : IClassRepository
         _dbContext.Classes
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
+    // Forces "UPDATE Classes SET RegisteredCount = <same value> WHERE Id = .. AND xmin = ..".
+    // The value is unchanged, but the UPDATE makes PostgreSQL check the stale xmin and bump it.
+    public void MarkForConcurrencyCheck(Class @class) =>
+        _dbContext.Entry(@class).Property(c => c.RegisteredCount).IsModified = true;
+
     public Task<bool> InstructorHasOverlapAsync(
         int instructorId, DateTime startTime, DateTime endTime, int? excludeClassId,
         CancellationToken cancellationToken = default) =>

@@ -26,9 +26,16 @@ public class WaitlistRepository : IWaitlistRepository
     public Task<WaitlistEntry?> GetNextWaitingAsync(int classId, CancellationToken cancellationToken = default) =>
         _dbContext.WaitlistEntries
             .Where(w => w.ClassId == classId && w.Status == WaitlistStatus.Waiting)
-            .OrderBy(w => w.Position)
-            .ThenBy(w => w.JoinedAt)
+            .OrderBy(w => w.JoinedAt)
+            .ThenBy(w => w.Id)
             .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<WaitlistEntry>> GetWaitingByClassForUpdateAsync(int classId, CancellationToken cancellationToken = default) =>
+        await _dbContext.WaitlistEntries
+            .Where(w => w.ClassId == classId && w.Status == WaitlistStatus.Waiting)
+            .OrderBy(w => w.JoinedAt)
+            .ThenBy(w => w.Id)
+            .ToListAsync(cancellationToken);
 
     public Task<int> CountWaitingByClassAsync(int classId, CancellationToken cancellationToken = default) =>
         _dbContext.WaitlistEntries

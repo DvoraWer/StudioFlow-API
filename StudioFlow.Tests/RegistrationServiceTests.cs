@@ -25,6 +25,8 @@ public class RegistrationServiceTests
     public RegistrationServiceTests()
     {
         _uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _waitlist.Setup(w => w.GetWaitingByClassForUpdateAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(new List<WaitlistEntry>());
     }
 
     // ---------- Register ----------------------------------------------------
@@ -175,6 +177,33 @@ public class RegistrationServiceTests
             x.MemberId == 99 && x.ClassId == 5 && x.Status == RegistrationStatus.Active)), Times.Once);
         Assert.Equal(2, cls.RegisteredCount); // 2 -> 1 (cancel) -> 2 (promote)
         _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once); // one transaction
+    }
+
+    [Fact]
+    public async Task CancelAsync_promotion_reindexes_the_remaining_waiting_entries()
+    {
+        var cls = TestKit.ActiveClass(id: 5, capacity: 2, registered: 2);
+        var reg = TestKit.ActiveRegistration(1, 5, cls);
+        var t0 = DateTime.UtcNow.AddHours(-1);
+        var first = new WaitlistEntry { Id = 11, MemberId = 99, ClassId = 5, Position = 1, JoinedAt = t0, Status = WaitlistStatus.Waiting };
+        var second = new WaitlistEntry { Id = 12, MemberId = 98, ClassId = 5, Position = 2, JoinedAt = t0.AddMinutes(1), Status = WaitlistStatus.Waiting };
+        var third = new WaitlistEntry { Id = 13, MemberId = 97, ClassId = 5, Position = 3, JoinedAt = t0.AddMinutes(2), Status = WaitlistStatus.Waiting };
+        _regs.Setup(r => r.GetForUpdateAsync(1, 5, It.IsAny<CancellationToken>())).ReturnsAsync(reg);
+        _classes.Setup(r => r.GetForUpdateAsync(5, It.IsAny<CancellationToken>())).ReturnsAsync(cls);
+        _waitlist.Setup(w => w.GetNextWaitingAsync(5, It.IsAny<CancellationToken>())).ReturnsAsync(first);
+        // Like EF before SaveChanges: the promoted entry is still Waiting in the database view.
+        _waitlist.Setup(w => w.GetWaitingByClassForUpdateAsync(5, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(new List<WaitlistEntry> { first, second, third });
+        _regs.Setup(r => r.GetForUpdateAsync(99, 5, It.IsAny<CancellationToken>())).ReturnsAsync((Registration?)null);
+
+        await Sut().CancelAsync(5, 1);
+
+        Assert.Equal(WaitlistStatus.Promoted, first.Status);
+        Assert.Equal(1, second.Position);
+        Assert.Equal(2, third.Position);
+        Assert.Equal(t0.AddMinutes(1), second.JoinedAt);
+        Assert.Equal(t0.AddMinutes(2), third.JoinedAt);
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once); // still one transaction
     }
 
     [Fact]

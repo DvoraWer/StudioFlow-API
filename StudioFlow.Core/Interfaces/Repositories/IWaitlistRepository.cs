@@ -15,9 +15,16 @@ public interface IWaitlistRepository
 
     /// <summary>
     /// Tracked "first in line": the earliest still-Waiting entry for a class,
-    /// ordered by Position then join time — the one promoted when a seat frees up.
+    /// ordered by JoinedAt then Id (FIFO) — the one promoted when a seat frees up.
+    /// Position is display-only and is not used here.
     /// </summary>
     Task<WaitlistEntry?> GetNextWaitingAsync(int classId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tracked list of still-Waiting entries for a class in FIFO order (JoinedAt, then Id),
+    /// used to reindex Position after someone leaves or is promoted.
+    /// </summary>
+    Task<IReadOnlyList<WaitlistEntry>> GetWaitingByClassForUpdateAsync(int classId, CancellationToken cancellationToken = default);
 
     /// <summary>Count of still-Waiting entries for a class (used to assign the next Position).</summary>
     Task<int> CountWaitingByClassAsync(int classId, CancellationToken cancellationToken = default);

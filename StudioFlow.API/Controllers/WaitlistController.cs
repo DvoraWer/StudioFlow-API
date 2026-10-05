@@ -38,6 +38,7 @@ public sealed class WaitlistController : ControllerBase
     [HttpDelete]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Leave([FromRoute] int classId, CancellationToken cancellationToken)
     {
         await _waitlistService.LeaveAsync(classId, User.GetUserId(), cancellationToken);

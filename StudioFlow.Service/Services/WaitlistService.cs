@@ -45,7 +45,9 @@ public sealed class WaitlistService : IWaitlistService
             throw new ForbiddenActionException("Only active members can join a waiting list.");
         }
 
-        var @class = await _classes.GetByIdAsync(classId, cancellationToken)
+        // Tracked load, before the queue is read: the Class xmin is the per-class
+        // concurrency boundary for every change to its waiting list.
+        var @class = await _classes.GetForUpdateAsync(classId, cancellationToken)
             ?? throw NotFoundException.For("Class", classId);
 
         if (@class.Status == ClassStatus.Cancelled)
@@ -100,10 +102,11 @@ public sealed class WaitlistService : IWaitlistService
             entry = existing;
         }
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        _classes.MarkForConcurrencyCheck(@class);
+        await SaveWaitlistChangeAsync(cancellationToken);
 
         var response = _mapper.Map<WaitlistResponseDto>(entry);
-        response.ClassName = @class.Name; // Class was loaded read-only; fill the flattened name here
+        response.ClassName = @class.Name; // Fill the flattened name explicitly; Class has no includes loaded
         return response;
     }
 
@@ -115,7 +118,31 @@ public sealed class WaitlistService : IWaitlistService
             throw new NotFoundException($"No active waiting-list entry found for class {classId}.");
         }
 
+        // Tracked load before the queue is reindexed — same concurrency boundary as JoinAsync.
+        var @class = await _classes.GetForUpdateAsync(classId, cancellationToken)
+            ?? throw NotFoundException.For("Class", classId);
+
         entry.Status = WaitlistStatus.Cancelled;
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await WaitlistPositions.ReindexAsync(_waitlist, classId, cancellationToken);
+
+        _classes.MarkForConcurrencyCheck(@class);
+        await SaveWaitlistChangeAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Commits a waitlist change together with the no-op Class update in one SaveChanges.
+    /// If another request changed the class first (stale xmin), nothing is written and the
+    /// caller gets a waitlist-specific 409 instead of the registration "last seat" message.
+    /// </summary>
+    private async Task SaveWaitlistChangeAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (ConcurrencyConflictException ex)
+        {
+            throw new ConcurrencyConflictException(ConcurrencyConflictException.WaitlistMessage, ex);
+        }
     }
 }
