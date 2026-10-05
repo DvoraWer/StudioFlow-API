@@ -36,6 +36,11 @@ public class ClassRepository : IClassRepository
                 .ThenInclude(i => i.User)
             .Include(c => c.Room);
 
+        // Classes that have already started are not listed (they can no longer be booked).
+        // Applied in the database, before Count and Skip/Take, so paging stays correct.
+        var now = DateTime.UtcNow;
+        query = query.Where(c => c.StartTime > now);
+
         if (!string.IsNullOrWhiteSpace(parameters.Search))
         {
             var pattern = $"%{parameters.Search.Trim()}%";
