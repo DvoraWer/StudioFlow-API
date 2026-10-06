@@ -90,8 +90,9 @@ store.
 
 ## 3 — Run migrations and start the API
 
-In Development the API **applies pending migrations and seeds demo data
-automatically on startup** — you do not normally need to run `dotnet ef`.
+The API **applies pending migrations automatically on startup** (in every
+environment), and in Development it also **seeds demo data** — you do not
+normally need to run `dotnet ef`.
 
 ```bash
 dotnet run --project StudioFlow.API --launch-profile http
@@ -121,6 +122,32 @@ npm run dev            # http://localhost:5173
 
 The Vite dev server proxies `/api/*` to `http://localhost:5235`, so no CORS
 configuration is needed on the API.
+
+---
+
+## 5 — Deploying to Render (Docker)
+
+The `Dockerfile` at the repository root builds and publishes `StudioFlow.API`
+(.NET 8, multi‑stage) and runs `StudioFlow.API.dll` on **HTTP port 8080**.
+`ASPNETCORE_ENVIRONMENT` is not set, so the container runs as **Production**
+(no Swagger, no seed).
+
+Create a Render **Web Service** (runtime: Docker) and set these environment variables:
+
+| Variable | Value |
+|---|---|
+| `ConnectionStrings__DefaultConnection` | Npgsql key/value format: `Host=…;Port=5432;Database=…;Username=…;Password=…` (Render shows a `postgresql://` URL — convert it) |
+| `Jwt__Key` | A new random secret, **at least 32 characters** |
+| `Cors__AllowedOrigins` | The React client's origin, e.g. its `https://….onrender.com` URL (comma‑separated for several; no path) |
+| `PORT` | `8080` — tells Render which port the container listens on |
+
+`Jwt:Issuer` (`StudioFlow`), `Jwt:Audience` (`StudioFlowClient`) and
+`Jwt:ExpiryMinutes` (`120`) already come from `appsettings.json`.
+
+On startup the API applies any pending migrations to the configured database.
+Demo data is **not** seeded outside Development, so a new deployment has no
+users: register through the client, and promote an admin by setting
+`"Role" = 0` for that row in the `Users` table.
 
 ---
 

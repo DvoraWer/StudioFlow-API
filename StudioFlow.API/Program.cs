@@ -149,25 +149,56 @@ try
 
     builder.Services.AddAuthorization();
 
+    // -----------------------------------------------------------------------
+    // CORS — only for a separately hosted client (e.g. the React client on Render).
+    // Origins come from configuration: Cors:AllowedOrigins, comma-separated
+    // (env var Cors__AllowedOrigins). Empty locally: the Vite dev server proxies
+    // /api, so the browser never makes a cross-origin call and CORS stays off.
+    // -----------------------------------------------------------------------
+    var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(origin => origin.TrimEnd('/'))
+        .ToArray();
+
+    if (allowedOrigins.Length > 0)
+    {
+        builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+            policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
+    }
+
     var app = builder.Build();
 
     // -----------------------------------------------------------------------
-    // DEVELOPMENT ONLY (spec §27): migrate + idempotent seed (with real password hashes)
+    // Database: pending migrations are applied in EVERY environment so a fresh
+    // deployment gets its schema (MigrateAsync is a no-op when up to date; a failure
+    // stops startup and is logged below). The idempotent seed stays DEVELOPMENT ONLY
+    // (spec §27) — it creates demo users with a published password.
     // -----------------------------------------------------------------------
-    if (app.Environment.IsDevelopment())
+    using (var scope = app.Services.CreateScope())
     {
-        using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StudioFlowDbContext>();
-        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         await db.Database.MigrateAsync();
-        await SeedData.SeedAsync(db, passwordHasher);
+
+        if (app.Environment.IsDevelopment())
+        {
+            var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+            await SeedData.SeedAsync(db, passwordHasher);
+        }
     }
 
     // -----------------------------------------------------------------------
-    // HTTP pipeline (spec §33): CorrelationId -> ExceptionHandling -> HTTPS
+    // HTTP pipeline (spec §33): CorrelationId -> [CORS] -> ExceptionHandling -> HTTPS
     //   -> Routing -> AuthN -> AuthZ -> Controllers
     // -----------------------------------------------------------------------
     app.UseMiddleware<CorrelationIdMiddleware>();
+
+    // Before the exception handler and auth so preflights short-circuit and error
+    // responses (401/403/409/500) still carry the CORS headers.
+    if (allowedOrigins.Length > 0)
+    {
+        app.UseCors();
+    }
+
     app.UseMiddleware<ExceptionHandlingMiddleware>();
 
     if (app.Environment.IsDevelopment())

@@ -1,0 +1,22 @@
+# Build output from the host (obj/ holds Windows restore state — never copy it in)
+**/bin/
+**/obj/
+**/logs/
+
+# Not part of the API image
+.git/
+.github/
+.vs/
+docs/
+studioflow-client/
+StudioFlow.Tests/
+**/node_modules/
+
+# Local-only settings and secrets
+**/*.user
+**/.env
+**/secrets.json
+**/appsettings.*.local.json
+
+Dockerfile
+.dockerignore
