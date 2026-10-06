@@ -41,16 +41,22 @@ public sealed class ClassesController : ControllerBase
         return Ok(await _classService.GetByIdAsync(id, cancellationToken));
     }
 
-    /// <summary>Creates a class after all §14/§15 rules pass (spec §21). Admin only.</summary>
-    [Authorize(Roles = "Admin")]
+    /// <summary>
+    /// Creates a class after all §14/§15 rules pass (spec §21). Admin creates for any
+    /// instructor; an Instructor creates only for themselves (ownership is resolved
+    /// from the token in the service; 403 otherwise).
+    /// </summary>
+    [Authorize(Roles = "Admin,Instructor")]
     [HttpPost]
     [ProducesResponseType(typeof(ClassResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ClassResponseDto>> Create(
         [FromBody] ClassCreateDto request, CancellationToken cancellationToken)
     {
-        var created = await _classService.CreateAsync(request, cancellationToken);
+        var created = await _classService.CreateAsync(
+            request, User.GetUserId(), User.GetRole(), cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 

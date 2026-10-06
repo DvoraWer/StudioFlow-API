@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace StudioFlow.Core.DTOs.Classes;
 
 /// <summary>
-/// Admin payload to create a class (spec §21, POST /api/classes).
+/// Admin / Instructor payload to create a class (spec §21, POST /api/classes).
 /// Server-controlled fields — Id, RegisteredCount, Status and the xmin
 /// concurrency token (spec §9) — are never accepted here. All Class business
 /// rules are enforced by ClassService, not this DTO: capacity vs room capacity,
@@ -20,8 +20,13 @@ public class ClassCreateDto
     [StringLength(2000)]
     public string Description { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Required when an Admin creates the class. An Instructor may omit it — the
+    /// class is always assigned to the caller's own instructor profile, and any
+    /// other value is rejected by ClassService (403).
+    /// </summary>
     [Range(1, int.MaxValue)]
-    public int InstructorId { get; set; }
+    public int? InstructorId { get; set; }
 
     [Range(1, int.MaxValue)]
     public int RoomId { get; set; }

@@ -173,16 +173,27 @@ try
     // deployment gets its schema (MigrateAsync is a no-op when up to date; a failure
     // stops startup and is logged below). The idempotent seed stays DEVELOPMENT ONLY
     // (spec §27) — it creates demo users with a published password.
+    // The separate production demo seed runs only when DemoSeed:Enabled is true; its
+    // credentials come from environment variables / User Secrets, never tracked files.
     // -----------------------------------------------------------------------
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<StudioFlowDbContext>();
         await db.Database.MigrateAsync();
 
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+
         if (app.Environment.IsDevelopment())
         {
-            var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
             await SeedData.SeedAsync(db, passwordHasher);
+        }
+
+        var demoSeed = builder.Configuration.GetSection(DemoSeedOptions.SectionName).Get<DemoSeedOptions>();
+        if (demoSeed?.Enabled == true)
+        {
+            var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                .CreateLogger(typeof(ProductionDemoSeed).FullName!);
+            await ProductionDemoSeed.SeedAsync(db, passwordHasher, demoSeed, seedLogger);
         }
     }
 

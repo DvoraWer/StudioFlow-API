@@ -14,8 +14,14 @@ public interface IClassService
     /// <summary>Full detail including tags (spec §21). Throws <c>NotFoundException</c> if missing.</summary>
     Task<ClassResponseDto> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
-    /// <summary>Creates a class after enforcing every §14/§15 rule. Admin only (enforced at the API).</summary>
-    Task<ClassResponseDto> CreateAsync(ClassCreateDto request, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Creates a class after enforcing every §14/§15 rule. An Admin creates it for the
+    /// requested instructor (required). An Instructor always creates it for their own
+    /// profile, resolved from <paramref name="callerUserId"/>; requesting another
+    /// instructor throws <c>ForbiddenActionException</c>. Any other role is forbidden.
+    /// </summary>
+    Task<ClassResponseDto> CreateAsync(
+        ClassCreateDto request, int callerUserId, UserRole callerRole, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates the editable fields and re-validates every affected §14/§15 rule

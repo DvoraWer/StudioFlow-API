@@ -59,13 +59,17 @@ public sealed class ClassService : IClassService
         return _mapper.Map<ClassResponseDto>(@class);
     }
 
-    public async Task<ClassResponseDto> CreateAsync(ClassCreateDto request, CancellationToken cancellationToken = default)
+    public async Task<ClassResponseDto> CreateAsync(
+        ClassCreateDto request, int callerUserId, UserRole callerRole, CancellationToken cancellationToken = default)
     {
+        var instructorId = await ResolveCreatorInstructorIdAsync(request, callerUserId, callerRole, cancellationToken);
+
         await ValidateScheduleAndCapacityAsync(
-            request.InstructorId, request.RoomId, request.StartTime, request.EndTime,
+            instructorId, request.RoomId, request.StartTime, request.EndTime,
             request.Capacity, registeredCount: 0, excludeClassId: null, cancellationToken);
 
         var @class = _mapper.Map<Class>(request);
+        @class.InstructorId = instructorId; // never taken from the body for an Instructor
         @class.Status = ClassStatus.Active;
         @class.RegisteredCount = 0;
 
@@ -124,6 +128,37 @@ public sealed class ClassService : IClassService
 
         var registrations = await _registrations.GetActiveByClassAsync(classId, cancellationToken);
         return _mapper.Map<IReadOnlyList<ParticipantDto>>(registrations);
+    }
+
+    /// <summary>
+    /// Decides which instructor a new class belongs to. Admin: the requested instructor
+    /// (existence is checked by the shared validation). Instructor: always the caller's
+    /// own profile, looked up by the token's user id — a different requested id is a
+    /// 403, never silently reassigned to someone else.
+    /// </summary>
+    private async Task<int> ResolveCreatorInstructorIdAsync(
+        ClassCreateDto request, int callerUserId, UserRole callerRole, CancellationToken cancellationToken)
+    {
+        if (callerRole == UserRole.Admin)
+        {
+            return request.InstructorId
+                ?? throw new ValidationException("InstructorId is required.");
+        }
+
+        if (callerRole != UserRole.Instructor)
+        {
+            throw new ForbiddenActionException("Only admins and instructors can create classes.");
+        }
+
+        var own = await _instructors.GetByUserIdAsync(callerUserId, cancellationToken)
+            ?? throw new ForbiddenActionException("Your account has no instructor profile.");
+
+        if (request.InstructorId is { } requested && requested != own.Id)
+        {
+            throw new ForbiddenActionException("Instructors can only create classes for themselves.");
+        }
+
+        return own.Id;
     }
 
     /// <summary>

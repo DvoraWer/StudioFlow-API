@@ -18,7 +18,7 @@ Four projects in `StudioFlow.sln`, plus a test project:
 | Project | Responsibility |
 |---|---|
 | `StudioFlow.Core` | Entities, Enums, DTOs, interfaces (repositories, services, security), domain exceptions. **No dependencies, no EF Core.** |
-| `StudioFlow.Data` | `StudioFlowDbContext`, Fluent `IEntityTypeConfiguration<T>`, repositories, `UnitOfWork`, migrations, dev seed. Depends on Core + Npgsql. |
+| `StudioFlow.Data` | `StudioFlowDbContext`, Fluent `IEntityTypeConfiguration<T>`, repositories, `UnitOfWork`, migrations, dev seed, opt‑in production demo seed. Depends on Core + Npgsql. |
 | `StudioFlow.Service` | Business logic and orchestration; AutoMapper profile. Depends on Core **only** — never on Data or EF Core. |
 | `StudioFlow.API` | Controllers, middleware (correlation id + global exception handling), JWT auth, DI wiring, NLog, Swagger, `Program.cs`. References Core + Service + Data (Data for DI registration only). |
 | `StudioFlow.Tests` | xUnit + Moq service unit tests and the two‑`DbContext` concurrency proof. |
@@ -130,7 +130,7 @@ configuration is needed on the API.
 The `Dockerfile` at the repository root builds and publishes `StudioFlow.API`
 (.NET 8, multi‑stage) and runs `StudioFlow.API.dll` on **HTTP port 8080**.
 `ASPNETCORE_ENVIRONMENT` is not set, so the container runs as **Production**
-(no Swagger, no seed).
+(no Swagger, no development seed; the opt‑in demo seed is described below).
 
 Create a Render **Web Service** (runtime: Docker) and set these environment variables:
 
@@ -145,9 +145,52 @@ Create a Render **Web Service** (runtime: Docker) and set these environment vari
 `Jwt:ExpiryMinutes` (`120`) already come from `appsettings.json`.
 
 On startup the API applies any pending migrations to the configured database.
-Demo data is **not** seeded outside Development, so a new deployment has no
-users: register through the client, and promote an admin by setting
-`"Role" = 0` for that row in the `Users` table.
+The development seed never runs outside Development.
+
+### Production demo seed (optional)
+
+To make a fresh deployment immediately usable for a demonstration, enable the
+**demo seed** (`StudioFlow.Data/Seed/ProductionDemoSeed.cs`). It runs on startup,
+after the migrations, **only** when `DemoSeed:Enabled` is `true` (the default in
+`appsettings.json` is `false`). Set these extra environment variables on Render
+— never put the values in `appsettings*.json`, source code or this README:
+
+| Variable | Value |
+|---|---|
+| `DemoSeed__Enabled` | `true` |
+| `DemoSeed__AdminName` | Display name of the Demo Admin |
+| `DemoSeed__AdminEmail` | Login email of the Demo Admin |
+| `DemoSeed__AdminPassword` | A strong password of your choice for the Demo Admin |
+| `DemoSeed__DemoUserPassword` | A strong password of your choice for the Demo Instructor |
+
+It creates, inside one transaction:
+
+* **Demo Admin** — from the settings above (role Admin).
+* **Demo Instructor** — `Yael Shapiro`, login `yael.shapiro@studioflow.example`,
+  password = `DemoSeed__DemoUserPassword`; an active Instructor user plus its
+  instructor profile. It can view classes and participants of its own classes, and
+  create classes for itself — nothing more.
+* **4 rooms** (Main Studio 25, Mind & Body Room 15, Spin Studio 12, Small Studio 6)
+  and **8 tags** (Beginner, Intermediate, Advanced, Cardio, Strength, Flexibility,
+  Mindfulness, Low Impact).
+* **10 future classes** owned by the Demo Instructor, spread over days 2–13 after
+  the first run, with tags, valid capacities and no instructor/room overlaps.
+* **No** members, registrations or waiting‑list entries (every class starts 0/N).
+  More instructors are added by the Admin through the app; members self‑register.
+
+Every record is matched by its natural key (user email, room/tag/class name) and
+only inserted when missing, so restarts and redeploys never duplicate anything.
+**Existing rows are never modified**: if the admin email already exists the
+account is left as it is (not promoted, password unchanged) and a warning is
+logged. A password is required only while its account does not exist yet, so
+after the first successful deploy you can remove `DemoSeed__AdminPassword` and
+`DemoSeed__DemoUserPassword`, or set `DemoSeed__Enabled=false`. If a required
+setting is missing or invalid (`AdminEmail` must be a valid email address,
+`AdminName` must not be empty, passwords must be 8–100 characters), startup fails
+before anything is written, with an error naming the setting (never its value). Logs contain only counts — no emails, passwords or hashes.
+
+Class times are fixed when they are first created, so after about two weeks the
+seeded classes are in the past; create new ones as the Admin or the Demo Instructor.
 
 ---
 
@@ -167,18 +210,20 @@ users: register through the client, and promote an admin by setting
 | Role | Can |
 |---|---|
 | **Member** | Browse / search / filter classes, view details, register, cancel a registration, join / leave a waiting list, view own registrations. |
-| **Instructor** | View classes, view the **participants of their own classes** (the API checks ownership; other classes return 403). |
+| **Instructor** | View classes, **create classes for themselves** (the API assigns the class to the caller's own instructor profile; requesting another instructor returns 403), view the **participants of their own classes** (the API checks ownership; other classes return 403). Cannot edit or cancel classes. |
 | **Admin** | All Member/Instructor read access **plus** create / edit / cancel classes, view any class's participants, and full CRUD for rooms and instructors. |
 
 Role authorization is enforced by the API (`[Authorize(Roles = …)]` plus
 resource‑ownership checks in the service layer). The React client mirrors it for
 navigation only.
 
-### Demo users
+### Demo users (Development seed only)
 
-All seeded users share the password **`Password123!`** (this is the example
-password from the project spec, used only for the local demo — it is stored
-hashed, never in plaintext):
+These users are created **only by the Development seed** (local Development
+environment). They all share the development password **`Password123!`** (the
+example password from the project spec, used only for the local demo — it is
+stored hashed, never in plaintext). They do not exist in Production; the optional
+production demo seed uses its own accounts and passwords from environment variables:
 
 | Email | Role |
 |---|---|
@@ -194,13 +239,15 @@ hashed, never in plaintext):
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | public |
 | GET | `/api/classes`, `/api/classes/{id}` | public |
-| POST / PUT | `/api/classes`, `/api/classes/{id}` | Admin |
+| POST | `/api/classes` | Admin (any instructor), or Instructor (own classes only) |
+| PUT | `/api/classes/{id}` | Admin |
 | POST | `/api/classes/{id}/cancel` | Admin |
 | GET | `/api/classes/{id}/participants` | Admin, or the class's instructor |
 | POST / DELETE | `/api/classes/{id}/register` | Member |
 | GET | `/api/me/registrations` | Member |
 | POST / DELETE | `/api/classes/{id}/waitlist` | Member |
-| GET / GET / POST / PUT / DELETE | `/api/rooms[/{id}]` | Admin |
+| GET | `/api/rooms` | Admin, Instructor (room picker for creating a class) |
+| POST / GET / PUT / DELETE | `/api/rooms`, `/api/rooms/{id}` (create, get one, update, delete) | Admin |
 | GET / GET / POST / PUT / DELETE | `/api/instructors[/{id}]` | Admin |
 
 `GET /api/classes` supports **server‑side** paging and filtering:
@@ -293,7 +340,8 @@ dotnet test StudioFlow.sln
   registration success / full‑class conflict / duplicate / cancelled / started,
   cancellation, waiting‑list join / position assignment / promotion, class
   capacity and schedule‑overlap validation, instructor‑ownership authorization
-  for participants, room/instructor delete‑guards, and the auth flows.
+  for participants and for instructor‑created classes, endpoint role metadata
+  (`EndpointAuthorizationTests`), room/instructor delete‑guards, and the auth flows.
 * **`LastSeatConcurrencyProofTests`** (spec §37/§38) — the real thing: two
   independent `StudioFlowDbContext` instances, one free seat, the loser gets
   `ConcurrencyConflictException`, the database ends with exactly one row. It uses
@@ -301,6 +349,13 @@ dotnet test StudioFlow.sln
   with the `STUDIOFLOW_TEST_CONNECTION` environment variable if yours differs;
   without a reachable database this single test fails with a clear message while
   the rest pass.
+* **`ProductionDemoSeedTests`** — run the production demo seed against a freshly
+  created and migrated throwaway PostgreSQL database per test (dropped afterwards):
+  the expected admin / instructor / rooms / tags / classes, no members or
+  registrations, capacity and overlap rules, an existing admin account left
+  untouched, idempotency on a second run, a rollback when a setting is missing, no
+  secrets in the logs, and the Demo Instructor creating a class through the real
+  `ClassService`. Same database requirement as the concurrency proof.
 
 ---
 

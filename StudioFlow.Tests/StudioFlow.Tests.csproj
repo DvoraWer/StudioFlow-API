@@ -30,6 +30,8 @@
     <ProjectReference Include="..\StudioFlow.Core\StudioFlow.Core.csproj" />
     <ProjectReference Include="..\StudioFlow.Service\StudioFlow.Service.csproj" />
     <ProjectReference Include="..\StudioFlow.Data\StudioFlow.Data.csproj" />
+    <!-- Endpoint authorization metadata ([Authorize] roles) is asserted on the controllers. -->
+    <ProjectReference Include="..\StudioFlow.API\StudioFlow.API.csproj" />
   </ItemGroup>
 
 </Project>

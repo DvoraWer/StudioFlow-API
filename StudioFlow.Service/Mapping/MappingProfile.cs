@@ -91,6 +91,7 @@ public class MappingProfile : Profile
             .ForMember(d => d.RegisteredCount, o => o.Ignore())
             .ForMember(d => d.Status, o => o.Ignore())
             .ForMember(d => d.Version, o => o.Ignore())        // xmin concurrency token (spec §9)
+            .ForMember(d => d.InstructorId, o => o.Ignore())   // resolved by ClassService from the caller's role
             .ForMember(d => d.Instructor, o => o.Ignore())
             .ForMember(d => d.Room, o => o.Ignore())
             .ForMember(d => d.Registrations, o => o.Ignore())
