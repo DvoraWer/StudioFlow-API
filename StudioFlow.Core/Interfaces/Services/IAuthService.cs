@@ -20,4 +20,12 @@ public interface IAuthService
     /// on any failure, without revealing which check failed.
     /// </summary>
     Task<AuthResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Changes the caller's own password after verifying the current one. Throws
+    /// <c>ValidationException</c> (400) if the current password is wrong — not 401,
+    /// so a typo does not end the session — and <c>AuthenticationException</c> (401)
+    /// if the account no longer exists or is inactive.
+    /// </summary>
+    Task ChangePasswordAsync(int userId, ChangePasswordRequestDto request, CancellationToken cancellationToken = default);
 }

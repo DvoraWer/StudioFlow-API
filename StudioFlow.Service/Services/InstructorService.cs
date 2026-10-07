@@ -89,6 +89,23 @@ public sealed class InstructorService : IInstructorService
         return _mapper.Map<InstructorResponseDto>(refreshed);
     }
 
+    public async Task<InstructorResponseDto> GetMyProfileAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        var instructor = await _instructors.GetByUserIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("No instructor profile is linked to your account.");
+
+        return _mapper.Map<InstructorResponseDto>(instructor);
+    }
+
+    public async Task<InstructorResponseDto> UpdateMyProfileAsync(int userId, InstructorUpdateDto request, CancellationToken cancellationToken = default)
+    {
+        // Ownership comes from the caller's user id only; the instructor id is never client-supplied.
+        var own = await _instructors.GetByUserIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("No instructor profile is linked to your account.");
+
+        return await UpdateAsync(own.Id, request, cancellationToken);
+    }
+
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         var instructor = await _instructors.GetForUpdateAsync(id, cancellationToken)

@@ -2,9 +2,22 @@ using StudioFlow.Core.DTOs.Instructors;
 
 namespace StudioFlow.Core.Interfaces.Services;
 
-/// <summary>Instructor administration (spec §6, §21). Admin only (enforced at the API).</summary>
+/// <summary>
+/// Instructor administration (spec §6, §21) — Admin only, enforced at the API — plus
+/// the instructor's own profile (the <c>*MyProfile*</c> methods, resolved from the
+/// caller's user id, Instructor only).
+/// </summary>
 public interface IInstructorService
 {
+    /// <summary>The profile linked to <paramref name="userId"/>. Throws <c>NotFoundException</c> if there is none.</summary>
+    Task<InstructorResponseDto> GetMyProfileAsync(int userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates Specialization/Bio of the profile linked to <paramref name="userId"/>
+    /// only. Throws <c>NotFoundException</c> if there is none (it is never created here).
+    /// </summary>
+    Task<InstructorResponseDto> UpdateMyProfileAsync(int userId, InstructorUpdateDto request, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<InstructorResponseDto>> GetAllAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Throws <c>NotFoundException</c> if missing.</summary>

@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using StudioFlow.API.Authentication;
 using StudioFlow.Core.DTOs.Auth;
 using StudioFlow.Core.DTOs.Users;
 using StudioFlow.Core.Interfaces.Services;
 
 namespace StudioFlow.API.Controllers;
 
-/// <summary>Public registration and login (spec §19, §21).</summary>
+/// <summary>Public registration and login (spec §19, §21), plus authenticated password change.</summary>
 [ApiController]
 [Route("api/auth")]
 public sealed class AuthController : ControllerBase
@@ -42,5 +43,21 @@ public sealed class AuthController : ControllerBase
     {
         var result = await _authService.LoginAsync(request, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Changes the caller's own password (any authenticated role). 400 if the current
+    /// password is wrong — deliberately not 401, which the client treats as a dead session.
+    /// </summary>
+    [Authorize]
+    [HttpPost("change-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequestDto request, CancellationToken cancellationToken)
+    {
+        await _authService.ChangePasswordAsync(User.GetUserId(), request, cancellationToken);
+        return NoContent();
     }
 }

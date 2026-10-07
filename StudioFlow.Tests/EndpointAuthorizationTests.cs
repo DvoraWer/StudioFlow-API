@@ -70,4 +70,63 @@ public class EndpointAuthorizationTests
         Assert.False(Allows(typeof(RoomsController), action, "Instructor"));
         Assert.False(Allows(typeof(RoomsController), action, "Member"));
     }
+
+    [Theory]
+    [InlineData(nameof(InstructorsController.GetAll))]
+    [InlineData(nameof(InstructorsController.GetById))]
+    [InlineData(nameof(InstructorsController.Create))]
+    [InlineData(nameof(InstructorsController.Update))]
+    [InlineData(nameof(InstructorsController.Delete))]
+    public void Instructor_management_remains_Admin_only(string action)
+    {
+        Assert.True(Allows(typeof(InstructorsController), action, "Admin"));
+        Assert.False(Allows(typeof(InstructorsController), action, "Instructor"));
+        Assert.False(Allows(typeof(InstructorsController), action, "Member"));
+    }
+
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData("Instructor")]
+    [InlineData("Member")]
+    public void My_account_is_open_to_every_authenticated_role(string role)
+        => Assert.True(Allows(typeof(MeController), nameof(MeController.GetAccount), role));
+
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData("Instructor")]
+    [InlineData("Member")]
+    public void Change_password_requires_authentication_and_is_open_to_every_role(string role)
+        => Assert.True(Allows(typeof(AuthController), nameof(AuthController.ChangePassword), role)); // RoleSets also asserts no [AllowAnonymous]
+
+    [Theory]
+    [InlineData(nameof(MeController.GetInstructorProfile))]
+    [InlineData(nameof(MeController.UpdateInstructorProfile))]
+    public void Instructor_profile_is_Instructor_only(string action)
+    {
+        Assert.True(Allows(typeof(MeController), action, "Instructor"));
+        Assert.False(Allows(typeof(MeController), action, "Admin"));
+        Assert.False(Allows(typeof(MeController), action, "Member"));
+    }
+
+    [Theory]
+    [InlineData(nameof(MeController.GetAccount))]
+    [InlineData(nameof(MeController.GetInstructorProfile))]
+    [InlineData(nameof(MeController.UpdateInstructorProfile))]
+    public void Me_actions_take_no_client_supplied_id(string action)
+    {
+        var method = typeof(MeController).GetMethod(action)!;
+        Assert.DoesNotContain(method.GetParameters(), p => p.ParameterType == typeof(int));
+        Assert.DoesNotContain("{", method.GetCustomAttributes<Microsoft.AspNetCore.Mvc.Routing.HttpMethodAttribute>().Single().Template);
+    }
+
+    [Theory]
+    [InlineData(nameof(RegistrationsController.Register))]
+    [InlineData(nameof(RegistrationsController.Cancel))]
+    [InlineData(nameof(RegistrationsController.GetMyRegistrations))]
+    public void Member_registration_endpoints_remain_Member_only(string action)
+    {
+        Assert.True(Allows(typeof(RegistrationsController), action, "Member"));
+        Assert.False(Allows(typeof(RegistrationsController), action, "Admin"));
+        Assert.False(Allows(typeof(RegistrationsController), action, "Instructor"));
+    }
 }

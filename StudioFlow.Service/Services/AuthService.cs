@@ -76,4 +76,28 @@ public sealed class AuthService : IAuthService
         _logger.LogInformation("Login succeeded. UserId={UserId} Role={Role}", user.Id, user.Role);
         return response;
     }
+
+    public async Task ChangePasswordAsync(int userId, ChangePasswordRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var user = await _users.GetForUpdateAsync(userId, cancellationToken);
+
+        // The token outlived its account (deleted or deactivated) — the session is no longer valid.
+        if (user is null || !user.IsActive)
+        {
+            _logger.LogWarning("Password change rejected: account missing or inactive. UserId={UserId}", userId);
+            throw new AuthenticationException("Your session is no longer valid. Please sign in again.");
+        }
+
+        // 400, not 401: the session is fine, the input is wrong.
+        if (!_passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            _logger.LogWarning("Password change rejected: current password did not match. UserId={UserId}", userId);
+            throw new ValidationException("The current password is incorrect.");
+        }
+
+        user.PasswordHash = _passwordHasher.Hash(request.NewPassword);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Password changed. UserId={UserId}", userId);
+    }
 }
